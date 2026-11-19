@@ -1,4 +1,3 @@
-#Validasi input
 # validasi.py
 # File ini isinya fungsi-fungsi buat ngecek input data iuran
 # sebelum data disimpan. Kalau datanya salah, fungsi akan raise ValueError.
@@ -129,33 +128,3 @@ def validasi_iuran(**data):
     }
     return hasil
 
-
-# bagian ini cuma jalan kalau file ini dijalankan langsung
-# (python app/validasi.py), buat coba-coba manual
-if __name__ == "__main__":
-    print("===validasi manual ===")
-
-    # data yang benar
-    try:
-        data = validasi_iuran(id="w016", nama="Andi Saputra", blok="a-04",
-                              jenis="Sosial", nominal="20000",
-                              bulan="2026-11", status="lunas")
-        print("Data valid:", data)
-    except ValueError as e:
-        print("Error:", e)
-
-    # data yang salah, ngetes pesan error
-    data_salah = [
-        ("nominal negatif", {"nominal": "-5000"}),
-        ("bulan salah", {"bulan": "2026-13"}),
-        ("status salah", {"status": "Cicil"}),
-        ("nama ada angka", {"nama": "Andi123"}),
-    ]
-    for judul, perubahan in data_salah:
-        data = dict(id="W016", nama="Andi", blok="A-04", jenis="Sosial",
-                    nominal="20000", bulan="2026-11", status="Lunas")
-        data.update(perubahan)  # timpa field yang mau dites
-        try:
-            validasi_iuran(**data)
-        except ValueError as e:
-            print("Ditolak (" + judul + "):", e)
