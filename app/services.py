@@ -1,0 +1,1 @@
+#Logika: CRUD, sorting, searching, filter, total
