@@ -10,7 +10,7 @@ class TestValidasi(unittest.TestCase):
 
     def test_nominal_valid(self):
         # string angka harus diubah jadi int
-        self.assertEqual(validasi_nominal("50000"), 50000)
+        self.assertEqual(validaspython -m unittest tests.test_validasi -vi_nominal("50000"), 50000)
 
     def test_nominal_negatif(self):
         # nominal negatif harus ditolak

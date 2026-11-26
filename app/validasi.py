@@ -127,4 +127,3 @@ def validasi_iuran(**data):
         "status": validasi_status(data["status"]),
     }
     return hasil
-
