@@ -1,9 +1,15 @@
-#Tampilan 
+# ui.py
+# File ini isinya tampilan aplikasi (GUI) pakai tkinter.
+# Class AplikasiIuran cuma ngurus tampilan, semua pengolahan data
+# diserahkan ke IuranService (di services.py).
+# Isi: tabel, pencarian, pengurutan, serta form tambah/ubah/hapus data.
 
 import tkinter as tk
+from datetime import datetime
 from tkinter import ttk, messagebox
 
 from app.services import KOLOM_VALID
+from app.validasi import JENIS_VALID, STATUS_VALID
 
 # judul kolom yang tampil di tabel
 JUDUL_KOLOM = {
@@ -48,6 +54,7 @@ class AplikasiIuran(tk.Tk):
         # susun tampilan dari atas ke bawah
         self.buat_judul()
         self.buat_pencarian()
+        self.buat_tombol()
         self.buat_tabel()
         self.buat_status_bar()
         self.tampilkan_data()
@@ -87,6 +94,18 @@ class AplikasiIuran(tk.Tk):
         tk.Button(frame, text="Reset", width=8,
                   command=self.reset_pencarian).pack(side="left", padx=2)
 
+    def buat_tombol(self):
+        """Baris tombol Tambah / Ubah / Hapus."""
+        frame = tk.Frame(self, padx=10, pady=3)
+        frame.pack(fill="x")
+
+        tk.Button(frame, text="+ Tambah Data", width=14, bg="#27ae60",
+                  fg="white", command=self.tambah_data).pack(side="left", padx=2)
+        tk.Button(frame, text="Ubah Data", width=14,
+                  command=self.ubah_data).pack(side="left", padx=2)
+        tk.Button(frame, text="Hapus Data", width=14, bg="#c0392b",
+                  fg="white", command=self.hapus_data).pack(side="left", padx=2)
+
     def buat_tabel(self):
         """Bagian tabel (Treeview) + scrollbar."""
         frame = tk.Frame(self, padx=10, pady=5)
@@ -110,6 +129,8 @@ class AplikasiIuran(tk.Tk):
 
         # warna beda buat baris yang belum bayar
         self.tabel.tag_configure("belum", foreground="#c0392b")
+        # klik 2x pada baris = buka form ubah
+        self.tabel.bind("<Double-1>", lambda event: self.ubah_data())
 
     def buat_status_bar(self):
         """Bagian bawah: jumlah data dan total uang."""
@@ -202,6 +223,50 @@ class AplikasiIuran(tk.Tk):
             self.urut_naik = True
         self.tampilkan_data()
 
+    def ambil_pilihan(self):
+        """Ambil data dari baris tabel yang lagi dipilih.
+        Return dict datanya, atau None kalau belum ada yang dipilih."""
+        terpilih = self.tabel.selection()
+        if len(terpilih) == 0:
+            messagebox.showwarning("Peringatan", "Pilih dulu satu baris di tabel!")
+            return None
+        return self.service.cari_by_id(terpilih[0])
+
+    def buat_id_baru(self):
+        """Bikin saran ID baru: ambil angka terbesar lalu tambah 1.
+        Contoh: kalau yang terakhir W015, hasilnya W016."""
+        terbesar = 0
+        for d in self.service.data:
+            angka = int(d["id"][1:])  # buang huruf W di depan
+            if angka > terbesar:
+                terbesar = angka
+        return "W" + str(terbesar + 1).zfill(3)
+
+    def tambah_data(self):
+        """Buka form kosong buat nambah data."""
+        FormIuran(self, self.service, self.tampilkan_data,
+                  id_baru=self.buat_id_baru())
+
+    def ubah_data(self):
+        """Buka form yang sudah terisi data baris yang dipilih."""
+        data = self.ambil_pilihan()
+        if data is not None:
+            FormIuran(self, self.service, self.tampilkan_data, data_lama=data)
+
+    def hapus_data(self):
+        """Hapus baris yang dipilih setelah user konfirmasi."""
+        data = self.ambil_pilihan()
+        if data is None:
+            return
+        yakin = messagebox.askyesno(
+            "Konfirmasi", "Yakin mau hapus data " + data["nama"] + "?")
+        if yakin:
+            try:
+                self.service.hapus(data["id"])
+                self.tampilkan_data()
+            except ValueError as e:
+                messagebox.showerror("Gagal", str(e))
+
     def cek_baris_rusak(self):
         """Kasih peringatan kalau ada baris CSV yang rusak waktu dibaca."""
         rusak = self.service.storage.baris_rusak
@@ -209,3 +274,86 @@ class AplikasiIuran(tk.Tk):
             messagebox.showwarning(
                 "Peringatan",
                 str(len(rusak)) + " baris di file CSV rusak dan dilewati.")
+
+
+
+class FormIuran(tk.Toplevel):
+    """Jendela form buat tambah atau ubah data iuran.
+
+    Kalau data_lama diisi -> mode UBAH (ID dikunci).
+    Kalau tidak -> mode TAMBAH (kolom kosong, ID diisi saran otomatis).
+    """
+
+    def __init__(self, induk, service, setelah_simpan, data_lama=None, id_baru=""):
+        super().__init__(induk)
+        self.service = service
+        self.setelah_simpan = setelah_simpan  # fungsi yang dipanggil habis simpan
+        self.data_lama = data_lama
+        self.mode_ubah = data_lama is not None
+
+        self.title("Ubah Data Iuran" if self.mode_ubah else "Tambah Data Iuran")
+        self.resizable(False, False)
+        self.transient(induk)  # form selalu di atas jendela utama
+        self.grab_set()        # jendela utama dikunci selama form terbuka
+
+        self.buat_isian(id_baru)
+        self.buat_tombol()
+
+    def buat_isian(self, id_baru):
+        """Bikin semua kotak isian (label + entry/combobox)."""
+        frame = tk.Frame(self, padx=15, pady=10)
+        frame.pack()
+
+        # nilai awal tiap kolom
+        if self.mode_ubah:
+            awal = dict(self.data_lama)
+        else:
+            awal = {"id": id_baru, "nama": "", "blok": "", "jenis": JENIS_VALID[0],
+                    "nominal": "", "bulan": datetime.now().strftime("%Y-%m"),
+                    "status": "Belum"}
+
+        self.isian = {}  # menyimpan variabel tiap kolom
+        for baris, kolom in enumerate(KOLOM_VALID):
+            tk.Label(frame, text=JUDUL_KOLOM[kolom] + ":",
+                     anchor="w", width=12).grid(row=baris, column=0, pady=3)
+
+            var = tk.StringVar(value=str(awal[kolom]))
+            self.isian[kolom] = var
+
+            if kolom == "jenis":
+                widget = ttk.Combobox(frame, textvariable=var, values=JENIS_VALID,
+                                      state="readonly", width=22)
+            elif kolom == "status":
+                widget = ttk.Combobox(frame, textvariable=var, values=STATUS_VALID,
+                                      state="readonly", width=22)
+            else:
+                widget = tk.Entry(frame, textvariable=var, width=25)
+                if kolom == "id" and self.mode_ubah:
+                    widget.config(state="disabled")  # ID tidak boleh diubah
+            widget.grid(row=baris, column=1, pady=3)
+
+    def buat_tombol(self):
+        """Tombol Simpan dan Batal."""
+        frame = tk.Frame(self, pady=10)
+        frame.pack()
+        tk.Button(frame, text="Simpan", width=10, bg="#27ae60", fg="white",
+                  command=self.simpan).pack(side="left", padx=5)
+        tk.Button(frame, text="Batal", width=10,
+                  command=self.destroy).pack(side="left", padx=5)
+
+    def simpan(self):
+        """Ambil isi form lalu kirim ke service.
+        Kalau data tidak valid, pesan errornya ditampilkan (aplikasi tidak crash)."""
+        data = {kolom: var.get() for kolom, var in self.isian.items()}
+        try:
+            if self.mode_ubah:
+                data.pop("id")  # ID tidak ikut diubah
+                self.service.ubah(self.data_lama["id"], **data)
+            else:
+                self.service.tambah(**data)
+        except ValueError as e:
+            messagebox.showerror("Data Tidak Valid", str(e), parent=self)
+            return  # form tetap terbuka biar user bisa benerin
+
+        self.setelah_simpan()  # refresh tabel di jendela utama
+        self.destroy()
