@@ -1,4 +1,7 @@
-#Logika: CRUD, sorting, searching, filter, total
+# services.py
+# File ini isinya logika pengolahan data iuran:
+# tambah, ubah, hapus, cari, urutkan, dan hitung total.
+# Class di sini TIDAK tahu soal tampilan (UI), jadi bisa dites sendiri.
 
 from app.validasi import validasi_iuran
 
@@ -27,7 +30,9 @@ class IuranService:
         self.storage = storage
         self.data = self.storage.baca_semua()  # langsung muat dari file
 
+    # ---------------------------------------------------------
     # CRUD (tambah, ubah, hapus)
+    # ---------------------------------------------------------
     def tambah(self, **data):
         """Tambah data iuran baru. ID tidak boleh sama dengan yang sudah ada."""
         bersih = validasi_iuran(**data)  # kalau salah langsung ValueError
@@ -68,7 +73,9 @@ class IuranService:
         self.data.remove(target)
         self.storage.simpan_semua(self.data)
 
+    # ---------------------------------------------------------
     # Searching
+    # ---------------------------------------------------------
     def cari_by_id(self, id_warga):
         """Cari satu data berdasarkan ID. Return dict, atau None kalau tidak ada."""
         id_warga = str(id_warga).strip().upper()
@@ -122,11 +129,13 @@ class IuranService:
             if cocok:
                 hasil.append(baris)
         return hasil
-    
-    # Sorting
-    def urutkan(self, kolom, naik=True):
-        """Urutkan data berdasarkan kolom pakai BUBBLE SORT.
 
+    # ---------------------------------------------------------
+    # Sorting
+    # ---------------------------------------------------------
+    def urutkan(self, kolom, naik=True):
+        """Urutkan data berdasarkan kolom pakai MERGE SORT.
+        (Hasil refactor dari bubble sort, jauh lebih cepat buat data banyak)
 
         Return:
             list of dict: salinan data yang sudah urut (data asli tidak berubah)
@@ -134,17 +143,41 @@ class IuranService:
         if kolom not in KOLOM_VALID:
             raise ValueError("Kolom " + str(kolom) + " tidak ada!")
 
-        hasil = list(self.data)  # disalin dulu biar data asli aman
-        n = len(hasil)
+        # lambda dipakai buat ambil nilai yang mau dibandingkan dari tiap data
+        kunci = lambda baris: self._nilai_urut(baris, kolom)
+        return self._merge_sort(list(self.data), kunci, naik)
 
-        # bubble sort: bandingkan 2 data bersebelahan, tukar kalau urutannya salah
-        for i in range(n - 1):
-            for j in range(n - 1 - i):
-                a = self._nilai_urut(hasil[j], kolom)
-                b = self._nilai_urut(hasil[j + 1], kolom)
-                salah_urutan = a > b if naik else a < b
-                if salah_urutan:
-                    hasil[j], hasil[j + 1] = hasil[j + 1], hasil[j]
+    def _merge_sort(self, daftar, kunci, naik):
+        """Merge sort: bagi dua terus sampai tinggal 1 data, lalu gabung lagi
+        sambil diurutkan. Stabil (data yang nilainya sama tidak tertukar)."""
+        if len(daftar) <= 1:
+            return daftar
+
+        tengah = len(daftar) // 2
+        kiri = self._merge_sort(daftar[:tengah], kunci, naik)
+        kanan = self._merge_sort(daftar[tengah:], kunci, naik)
+        return self._gabung(kiri, kanan, kunci, naik)
+
+    def _gabung(self, kiri, kanan, kunci, naik):
+        """Gabungkan 2 list yang sudah urut jadi 1 list urut."""
+        hasil = []
+        i = 0
+        j = 0
+        while i < len(kiri) and j < len(kanan):
+            a = kunci(kiri[i])
+            b = kunci(kanan[j])
+            # ambil dari kiri dulu kalau urutannya sudah benar (atau sama)
+            kiri_dulu = a <= b if naik else a >= b
+            if kiri_dulu:
+                hasil.append(kiri[i])
+                i += 1
+            else:
+                hasil.append(kanan[j])
+                j += 1
+
+        # sisa data yang belum masuk tinggal ditempel di belakang
+        hasil.extend(kiri[i:])
+        hasil.extend(kanan[j:])
         return hasil
 
     def _nilai_urut(self, baris, kolom):
@@ -155,7 +188,9 @@ class IuranService:
             return nilai.lower()
         return nilai
 
+    # ---------------------------------------------------------
     # Perhitungan
+    # ---------------------------------------------------------
     def total_nominal(self, **kriteria):
         """Hitung total nominal. Boleh pakai filter, contoh:
         total_nominal(status="Lunas")"""
