@@ -29,6 +29,12 @@ class IuranService:
     def __init__(self, storage):
         self.storage = storage
         self.data = self.storage.baca_semua()  # langsung muat dari file
+        self._indeks = {}  # kamus id -> data, biar cari by id langsung ketemu
+        self._bangun_indeks()
+
+    def _bangun_indeks(self):
+        """Isi kamus _indeks dari self.data."""
+        self._indeks = {baris["id"]: baris for baris in self.data}
 
     # ---------------------------------------------------------
     # CRUD (tambah, ubah, hapus)
@@ -41,6 +47,7 @@ class IuranService:
             raise ValueError("ID " + bersih["id"] + " sudah dipakai!")
 
         self.data.append(bersih)
+        self._indeks[bersih["id"]] = bersih  # jangan lupa update kamus
         self.storage.simpan_semua(self.data)  # simpan biar permanen
         return bersih
 
@@ -71,18 +78,17 @@ class IuranService:
             raise ValueError("Data dengan ID " + id_warga + " tidak ditemukan!")
 
         self.data.remove(target)
+        del self._indeks[target["id"]]  # hapus juga dari kamus
         self.storage.simpan_semua(self.data)
 
     # ---------------------------------------------------------
     # Searching
     # ---------------------------------------------------------
     def cari_by_id(self, id_warga):
-        """Cari satu data berdasarkan ID. Return dict, atau None kalau tidak ada."""
+        """Cari satu data berdasarkan ID pakai dictionary (langsung ketemu,
+        tidak perlu cek satu-satu). Return dict, atau None kalau tidak ada."""
         id_warga = str(id_warga).strip().upper()
-        for baris in self.data:
-            if baris["id"] == id_warga:
-                return baris
-        return None
+        return self._indeks.get(id_warga)
 
     def cari(self, kata_kunci, kolom=None):
         """Cari data berdasarkan kata kunci (linear search).
