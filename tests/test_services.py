@@ -128,6 +128,41 @@ class TestIuranService(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.service.urutkan("kolom_ngawur")
 
+    # ---------------- test pengaman refactoring ----------------
+    def test_urut_sama_dengan_sorted_bawaan(self):
+        # hasil urut buatan sendiri harus sama dengan sorted() bawaan python
+        for kolom in ["id", "nama", "blok", "jenis", "nominal", "status"]:
+            hasil = self.service.urutkan(kolom)
+            harapan = sorted(self.service.data,
+                             key=lambda d: str(d[kolom]).lower()
+                             if isinstance(d[kolom], str) else d[kolom])
+            self.assertEqual(hasil, harapan)
+
+    def test_urut_stabil_data_sama(self):
+        # W003 & W004 sama-sama "Belum"; urutan awalnya tidak boleh tertukar
+        hasil = self.service.urutkan("status")
+        id_belum = [d["id"] for d in hasil if d["status"] == "Belum"]
+        self.assertEqual(id_belum, ["W003", "W004"])
+
+    def test_urut_data_kosong(self):
+        self.service.data.clear()
+        self.assertEqual(self.service.urutkan("nama"), [])
+
+    def test_cari_by_id_setelah_tambah_dan_hapus(self):
+        self.service.tambah(id="W005", nama="Rina", blok="C-01",
+                            jenis="Sosial", nominal=40000,
+                            bulan="2026-11", status="Belum")
+        self.assertIsNotNone(self.service.cari_by_id("w005"))  # huruf kecil ok
+        self.service.hapus("W005")
+        self.assertIsNone(self.service.cari_by_id("W005"))
+
+    def test_filter_tanpa_kriteria_semua_data(self):
+        self.assertEqual(len(self.service.filter_data()), 4)
+
+    def test_filter_kolom_salah(self):
+        with self.assertRaises(ValueError):
+            self.service.filter_data(warna="merah")
+
 
 if __name__ == "__main__":
     unittest.main()
