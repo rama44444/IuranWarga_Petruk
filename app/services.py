@@ -125,16 +125,12 @@ class IuranService:
             if k not in KOLOM_VALID:
                 raise ValueError("Kolom " + k + " tidak ada!")
 
-        hasil = []
-        for baris in self.data:
-            cocok = True
-            for k, nilai in kriteria.items():
-                if str(baris[k]).lower() != str(nilai).lower():
-                    cocok = False
-                    break
-            if cocok:
-                hasil.append(baris)
-        return hasil
+        # all() = true kalau SEMUA kriteria cocok, jadi tidak perlu flag manual
+        return [
+            baris for baris in self.data
+            if all(str(baris[k]).lower() == str(v).lower()
+                   for k, v in kriteria.items())
+        ]
 
     # ---------------------------------------------------------
     # Sorting
