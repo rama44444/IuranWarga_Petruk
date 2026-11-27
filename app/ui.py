@@ -160,7 +160,7 @@ class AplikasiIuran(tk.Tk):
         # 2) pengurutan (urutkan semua dulu, lalu ambil yang ada di hasil)
         if self.kolom_urut is not None:
             urutan = self.service.urutkan(self.kolom_urut, self.urut_naik)
-            id_hasil = [d["id"] for d in hasil]
+            id_hasil = {d["id"] for d in hasil}  # set: cek "in" jauh lebih cepat dari list
             hasil = [d for d in urutan if d["id"] in id_hasil]
         return hasil
 
